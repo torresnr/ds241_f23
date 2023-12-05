@@ -1,0 +1,74 @@
+---
+title: "MA132 Enrollment Spring 2024 Prediction"
+date: 2023-10-02
+output: html_notebook
+---
+We will be making a prediction for the enrollment for MA132 in the Spring 2024 semester.
+
+First, we will load our libraries.
+
+```{r}
+library(here)
+library(janitor)
+library(tidyverse)
+library(skimr)
+```
+
+Next, we will read the csv file with the data from enrollment in past semesters.
+
+```{r}
+thisfile = here("data_raw", "CU_ACAD_DEPT_WHEN_OFF_ENRL.csv")
+df1 = read_csv(thisfile) %>% clean_names()
+```
+
+Now, we will skim the data to see how many columns there are.
+```{r}
+skimr::skim(df1)
+```
+
+Next, we create another data frame that takes df1 and only shows the data from the classes we want to look at.
+
+```{r}
+df_calc = df1 |>
+  select(-acad_org, -title, -current_status, -course_id) |>
+  filter(subject == "MA",
+         catalog %in% c(131, 132),
+         component == "LEC")
+```
+
+Now, we create another dataframe, df2, which will further filter df_calc.
+
+```{r}
+df2 = df_calc %>%
+  slice_head(n = 1, by = c(term_7, catalog, section)) %>%
+  select(-subject, -component, -instructor) %>%
+  mutate(catalog = as.character(catalog)) %>%
+  separate_wider_delim(term_8, delim = " ", names = c("semester", "year")) %>%
+  mutate(ay = ((term_7 - 4000) / 10 ) %>% round()) %>%
+  filter(!(catalog == "131" & semester == "Spring")) %>%
+  filter(semester %in% c("Fall", "Spring")) %>%
+  summarise(tot_enrl = sum(tot_enrl), .by = c(catalog, semester, ay)) %>%
+  pivot_wider(values_from = tot_enrl,
+              id_cols = ay,
+              names_from = c("catalog", "semester"),
+              names_prefix = "ma") %>%
+  clean_names()
+```
+
+Now, we will visualize df2.
+
+```{r}
+df2 %>%
+  ggplot(aes(ma131_fall, ma132_spring)) +
+  geom_point()
+```
+Note: We can see from the graph, enrollment for ma131_fall increases as ma132_increases enrollment increases. In order for us to assume that most people move onto ma132 in the spring after taking ma131 in the fall, we should also look at results of ma132 in the fall of that same ma131_fall semester.
+
+```{r}
+df2 %>%
+  ggplot(aes(ma132_fall, ma132_spring)) +
+  geom_point()
+```
+We can see from the graph that most enrollment for both ma132 semesters stays pretty still, which means that although people may retake ma132 or not take the course right after taking ma131, the enrollment numbers still stay pretty similar, although the increase in enrollment in the spring could be due to more freshmen enrollment in fall semesters versus spring.
+
+Taking into account ma131_fall, and looking at what ma132 enrollment has been in the past, our prediction for the MA131 Spring 2024 semester will be some number around 350 students, whether it be over or under.

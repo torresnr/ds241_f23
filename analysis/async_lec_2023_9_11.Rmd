@@ -1,0 +1,110 @@
+---
+title: "Experiment 3: More Airline Data"
+subtitle: "Asynchronous Lecture"
+date: 2023-09-11
+output: html_notebook
+---
+
+This experiment (conceptually) continues our class work on flight data.
+
+We will continue to refer to (https://r4ds.hadley.nz/data-transform).
+
+**However, we will expand and update our data set by going to a root source --- the Bureau of Transportation.
+
+(https://www.transtats.bts.gov/DL_SelectFields.aspx?gnoyr_VQ=FIM&QO_fu146_anzr=Nv4%20Pn44vr45) This data set allows access to information on domestic flights and domestic carriers, with monthly summary data.
+
+# Packages
+```{r}
+library(nycflights13)
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+# Got data from online source.
+
+## Loading the BOT data
+
+We take advantage of the 'here' package to get the path to the file that we stored, We also may note that inside the zip file is a .csv file. We will read the .csv file.
+```{r}
+thisfile = here("data_raw", "DL_SelectFields.zip")
+
+df2022 = read_csv(thisfile) %>% clean_names()
+```
+
+## Subsetting to data of interest
+
+Let's focus on flights from LaGuardia (airport "LGA") and eliminate cargo flights by requiring at least 1 passenger.
+
+Call the resultant data frame 'df9'.
+```{r}
+df9 = df2022 |>
+  filter(passengers > 0, origin == "LGA")
+```
+
+# Exploring the BOT 2022 data
+
+## Subsetting to data of interest
+
+Let's try to visualize a monthly count of flights using a bar chart.
+
+First, a not quite right visualization.
+```{r}
+df9 |> ggplot(aes(month)) + geom_bar()
+```
+
+By default, 'geom_bar' is counting the number of rows, where we have asked it to visualize the count by 'month'.
+
+** Take a look at the data set and discover why counting rows is not going to give us a count of flights. **
+
+The visualization we want is:
+```{r}
+df9 |> ggplot(aes(month)) + geom_bar(aes(weight = departures_performed))
+```
+
+Make some observations about this plot.
+
+### A new visualization
+
+Can you make a box plot where the bar height is based on the number of passengers riding each month?
+```{r}
+df9 |> ggplot(aes(month)) + geom_bar(aes(weight = passengers))
+```
+
+Observation:
+* Low passenger numbers in early 2022 likely due to COVID-19.
+
+### Just because you can
+
+Here is pretty, but not so useful plot.
+```{r}
+df9 |>
+  ggplot(aes(month, fill = carrier_name)) + geom_bar(aes(weight = departures_performed))
+```
+
+## Arrivals and departures from LGA
+```{r}
+df10 = df2022 |> filter(passengers > 0, origin == "LGA" | dest == "LGA")
+
+df10 |> ggplot(aes(month)) + geom_bar(aes(weight = passengers))
+```
+
+```{r}
+df11 = df10 |>
+  select(month, passengers, seats, carrier_name, dest, origin)
+```
+
+```{r}
+df12 = df10 |> select(1:5, month, contains("id"))
+```
+
+```{r}
+df13 = df11 |> mutate(percent_loading = passengers / seats * 100)
+
+df13 |>
+  ggplot(aes(percent_loading)) +
+  geom_histogram() + facet_wrap(~carrier_name, scales = "free_y")
+```
+
+
+

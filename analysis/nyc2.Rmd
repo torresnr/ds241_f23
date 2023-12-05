@@ -1,0 +1,140 @@
+---
+title: "Experiment 2: NYC Airline Data"
+date: 2023-09-11
+output: html_notebook
+---
+
+This is a notebook that is derived from an experiment done in DS241.
+
+It will consist the loading of NYC flight data, finding unique flight numbers in flights to Miami in September, creating a data frame called df6, which is composed of flights to Miami with a flight number matching the smallest flight number from the given set stated above, creating a visualization (using ggplot) to show DELAYS associated with this flight number, and creating another visualization that helps understand the relationship between the arrival delay and the departure delay.
+
+First, we will load our needed libraries.
+```{r}
+library(nycflights13)
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+Now, we will load our flight data into a variable named df1.
+```{r}
+df1 = flights
+glimpse(df1)
+```
+
+Next, we will find the unique flight numbers for flights to Miami in September.
+To begin, we will create a variable, called df3, that will hold the flights to Miami in September
+```{r}
+df3 = df1 |> filter(month == 9, dest == "MIA")
+glimpse(df3)
+```
+
+Then, we will create a variable, called unique_df3, that will find the unique flight numbers in the flights composed in df3.
+```{r}
+unique_df3 = df3 |> distinct(flight) |> arrange(flight)
+glimpse(unique_df3)
+```
+
+We will now create the data frame df6, which will compose of flights to Miami with the smallest flight number from the set above.
+```{r}
+df6 = df1 %>% filter (dest == "MIA", flight == 83)
+glimpse(df6)
+```
+
+Now, we will create a visualization (using ggplot) to show the DELAYS associated with this flight number.
+```{r}
+df6 |> ggplot(aes(x = dep_delay, y = arr_delay)) +geom_point()
+```
+
+
+Finally, we will create a visualization that helps to understand the relationship between the arrival delay and the departure delay.
+```{r}
+flights |> ggplot(aes(x = dep_delay, y = arr_delay)) +geom_point()
+```
+We can see from the visual that the arrival delay and departure delay are similar enough in time to one another. Example: if a flight departed ~20 minutes late, you can expect to arrive ~20 minutes late. Generally, the arrival delays and departure delays are right-skewed, meaning the delays are not very long. Any "delay" value that is negative, means that it was early; so if arrival delay is negative, then it arrived early, and if departure delay is negative, then the flight left early.
+
+> Questions:
+> - Is flight time affected by delayed departure? (Do the airlines try to "catch up"?)
+> - Does the departure delay change across time of day? (Later in the day has more delays.)
+> - Is flight time pattern affected by time of year?
+> - Is departure delay affected by time of year?
+
+* Note to self
+*Note to self*
+**Note to self**
+***Note to self***
+
+## Another visualization
+```{r}
+df1 |>
+  filter(dest == "MIA") |>
+  count(origin, sort = TRUE)
+```
+## Is flight time affect by delayed departure?
+
+I want to examine whether the flight time is impacted by delayed departure
+
+I want to compare flight time to "planned" flight time. So we create a new variable called flt_delta.
+
+A flight that arrives 10 minutes later, if it departed on time, had a "delta" of 10 minutes.
+```{r}
+df7 = df1 |>
+  filter(dest == "MIA", origin == "LGA") |>
+  mutate(flt_delta = arr_delay - dep_delay)
+```
+
+```{r}
+df7 |>
+  ggplot(aes(x = dep_delay, y = flt_delta)) +geom_point(alpha = 0.1)
+```
+
+```{r}
+df7 |>
+  ggplot(aes(x = dep_delay, y = flt_delta)) +geom_point(alpha = 0.1) +
+  geom_hline(aes(yintercept = mean(flt_delta, na.rm = TRUE)))
+```
+
+### Is departure delat affect by time of year
+```{r}
+df7 |>
+  ggplot(aes(x = time_hour, y = dep_delay)) +geom_point(alpha = 0.1)
+```
+
+```{r}
+df7 |>
+  ggplot(aes(x = time_hour, y = dep_delay)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth() +
+  ylim(-25, 120)
+```
+***Why are delays bigger in December than in January --- probably not weather.***
+
+### Does the departure delay change across time of day?
+```{r}
+df7 |>
+  ggplot(aes(x = hour + minute / 60, y = dep_delay)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth() +
+  ylim(-25, 120)
+```
+Observation:
+* Departure delay increases across the flight day.
+
+```{r}
+df7 |>
+  mutate(day_of_week = weekdays(time_hour)) |>
+  ggplot(aes(x = hour + minute / 60, y = dep_delay, color = day_of_week)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth() +
+  ylim(-25, 120)
+```
+
+```{r}
+df7 |>
+  mutate(day_of_week = weekdays(time_hour)) |>
+  ggplot(aes(x = hour + minute / 60, y = dep_delay, color = day_of_week)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth() +
+  ylim(-25, 40) +
+  facet_wrap(~day_of_week)
+```

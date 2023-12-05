@@ -1,0 +1,276 @@
+---
+title: "September 2023 BikeShare Data Analysis"
+author: "Naida Torres"
+date: "2023-11-06"
+output: html_notebook
+---
+
+Today, we will focus on September 2023 bikeshare data.
+
+```{r}
+library(here)
+library(janitor)
+library(tidyverse)
+library(openmeteo)
+library(ggplot2)
+library(plotly)
+library(tmap)
+library(sf)
+```
+
+Now, we will load the data.
+
+```{r}
+df1 = read_csv(here("data_raw",
+                    "202309-capitalbikeshare-tripdata.zip"))
+```
+
+Extract some data into data frames for starting information.
+
+```{r}
+df2s = df1 %>% 
+  select(rideable_type,
+         member_casual,
+         contains("start"),
+         ride_id) %>% 
+  mutate(start_stop = "start") %>%
+  rename(t = started_at,
+         station_name = start_station_name,
+         station_id = start_station_id,
+         lat = start_lat,
+         lng = start_lng)
+
+df2e = df1 %>% 
+  select(ride_id,
+         rideable_type,
+         member_casual,
+         contains("end")) %>%
+  mutate(start_stop = "stop") %>%
+  rename(t = ended_at,
+         station_name = end_station_name,
+         station_id = end_station_id,
+         lat = end_lat,
+         lng = end_lng)
+ 
+df2 = bind_rows(df2s,
+                df2e) %>%
+  arrange(t) %>%
+  mutate(rider_delta = (start_stop == "start") * 2 - 1) %>% # change in ridership 
+  mutate(riders = cumsum(rider_delta)) %>%
+  relocate(riders, .after = t)
+```
+
+Making df2.
+
+```{r}
+df2 %>% 
+  ggplot(aes(t, riders)) +
+  geom_line()
+```
+
+# Constructing a subsampled dataset
+
+We work with a small slice of data as we build the approach, as it is computationally efficient.
+
+```{r}
+df_s = df2 %>%
+  slice_head(n = 1000)
+```
+
+We can round-down (floor) to the nearest 10 minute point, and then sample the first (earliest) point within that 10 minute window.
+
+```{r}
+df_e = df_s |>
+  mutate(t_f = floor_date(t,
+                          "10 mins")) %>%
+  relocate(t_f,
+           .after = t) %>%
+  slice_head(n = 1,
+             by = t_f)
+```
+
+The procedure seems reasonable so we apply to full data set and visualize.
+
+```{r}
+df_r = df2 |>
+  mutate(t_f = floor_date(t,
+                          "10 mins")) %>%
+  relocate(t_f,
+           .after = t) %>%
+  slice_head(n = 1,
+             by = t_f)
+```
+
+We plot the original data.
+
+```{r}
+p1 = df2 %>% 
+  filter(day(t) == 18) %>%
+  ggplot(aes(t,
+             riders)) +
+  geom_line() +
+  ggtitle("Riders on 18Sep")
+p1
+```
+
+We plot for the 18th, and compare to our original visualization.
+
+```{r}
+p1+
+  geom_line(data = df_r %>%
+              filter(day(t) == 18),
+            color = "red")
+```
+
+Based on figure above, it seems like subsampling based on nearest minute may be more appropriate:
+
+```{r}
+df_r = df2 |>
+  mutate(t_f = floor_date(t,
+                          "1 mins")) %>%
+  relocate(t_f,
+           .after = t) %>%
+  slice_head(n = 1,
+             by = t_f)
+```
+
+We re-plot for the 18th, and compare to our original visualization.
+
+```{r}
+p1+
+  geom_line(data = df_r %>%
+              filter(day(t) == 18),
+            color = "red")
+```
+
+We will get the weather history for Washington in September.
+
+```{r}
+df_w = weather_history("Washington",
+                       start = "2023-09-01",
+                       end = "2023-09-30",
+                       hourly = c("apparent_temperature",
+                                  "wind_speed_10m",
+                                  "precipitation"))
+```
+
+We work with a small slice of data as we build the approach, as it is computationally efficient.
+
+```{r}
+df_s = df2 %>%
+  slice_sample(n = 1000)
+```
+
+```{r}
+df_j = df_s %>%
+  left_join(df_w,
+            by = join_by(closest(t >= datetime)))
+```
+
+Normally, joined columns are added to the right. Let's move the data time column (for the weather forecast, next to 't') and examine where we stand.
+
+```{r}
+df_j = df_s %>% 
+  left_join(df_w,
+            by = join_by(closest(t >= datetime))) %>%
+  relocate(datetime,
+           .after = t)
+
+head(df_j)
+```
+
+NOTE: Our times don't match up.
+
+```{r}
+df_j$t[1:5]
+df_j$datetime[1:5]
+```
+GOAL: Make time zones match up.
+
+```{r}
+df2$t[1:5]
+force_tz(df2$t[1:5],
+         "America/New_York")
+
+df2c = df2 %>%
+  mutate(t = force_tz(t,
+                      tzone = "America/New_York")) # Corrected
+ 
+df_s2 = df2c %>%
+  slice_sample(n = 1000)
+ 
+df_j2 = df_s2 %>% 
+  left_join(df_w,
+            by = join_by(closest(t >= datetime)))  %>%
+  relocate(datetime,
+           .after = t)
+ 
+head(df_j2)
+```
+
+Now that we have built our methodology, lets create the joined data set in the right way.
+
+Also, for convenience, lets change our variable names in the weather data to be a bit shorter.
+
+```{r}
+dfc = df2c %>%
+  left_join(df_w, by = join_by(closest(t >= datetime))) %>%
+  relocate(datetime,
+           .after = t) %>%
+  rename (atemp = hourly_apparent_temperature,
+          wind = hourly_wind_speed_10m,
+          prec = hourly_precipitation)
+```
+
+Again, we will down sample to improve visualization speed.
+
+```{r}
+df_r = dfc |>
+  mutate(t_f = floor_date(t,
+                          "10 mins")) %>%
+  relocate(t_f,
+           .after = t) %>%
+  slice_head(n = 1,
+             by = t_f)
+
+p2 = dfc %>%
+  filter (day(t) == 23) %>%
+  ggplot(aes(x = t,
+             riders,
+             color = wind,
+             shape = rideable_type,
+             size = member_casual)) +
+  geom_point()
+p2 
+```
+
+```{r}
+plotly::ggplotly(p2)
+```
+
+```{r}
+df1d = df1 %>%
+  mutate(ride_time = ended_at - started_at)
+
+df1d %>%
+  ggplot(aes(ride_time)) +
+  geom_histogram()
+```
+
+Create a map graph for the September data.
+
+```{r}
+neigh = st_read(here("data_raw",
+                     "DC_Health_Planning_Neighborhoods.geojson")) %>%
+  clean_names()
+
+class(neigh)
+
+map_and_data <- innerjoin(neigh, dfc, by = c(""))
+tmap_mode("view")
+tm_shape(dfc) +tm_polygons("total_rides",
+                              alpha = 0.5)
+```
+
+ 
+ 

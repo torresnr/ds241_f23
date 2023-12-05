@@ -1,0 +1,33 @@
+---
+title: "exp_007 visualizing crimes and stations"
+author: "Naida Torres"
+date: "2023-11-20"
+output: html_notebook
+---
+This notebook intends to provide a map representation of information DC bike share ridership
+
+```{r}
+library(gbfs)
+library(here)
+library(janitor)
+library(tidyverse)
+library(openmeteo)
+library(lubridate)
+library(sf) # working with simple features - geospatial
+library(tmap)
+library(tidycensus)
+
+```
+```{r}
+df1 = st_read(here("data_raw",
+                   "Crime_Incidents_in_2022.geojson")) %>%
+  clean_names()
+```
+
+```{r}
+tmap_mode("view")
+tm_shape(df1) +
+  tm_facets("offense") +
+  tm_dots("offense", legend.show = FALSE)
+```
+

@@ -1,0 +1,222 @@
+---
+title: "Bikeshare: Homework 1"
+author: "Naida Torres"
+date: 'Due: October 18, 2023'
+output: 
+  html_notebook:
+    toc: true
+    toc_depth: 3
+    theme: cerulean
+    highlight: tango
+---
+
+##### Citation
+
+This homework assignment is largely borrowed from Coursework created Prof. Alexandra Chouldechova at Carnegie Mellon University.  I have modified slightly and am using in accordance with the Creative Commons License:
+
+ 
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License(http://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+##### To complete this assignment, follow these steps:
+
+1. Download the `homework1.Rmd` file from Moodle.
+
+2. Open `homework1.Rmd` in RStudio.
+
+3. Replace the "Your Name Here" text in the `author:` field with your own name.
+
+4. Supply your solutions to the homework by editing `homework1.Rmd`.
+
+5. When you have completed the homework and have **checked** that your code both runs in the Console and knits correctly when you click `Knit HTML`, rename the R Markdown file to `homework1_YourNameHere.Rmd`, and submit both the `.Rmd` file and the `.html` output file on Blackboard.  (YourNameHere should be changed to your own name.)
+
+##### Homework tips:
+
+1. Recall the following useful RStudio hotkeys.
+
+Keystroke | Description
+------------|-------------------------------------------
+`<tab>` | Autocompletes commands and filenames, and lists arguments for functions.
+`<up>` | Cycles through previous commands in the console prompt
+`<ctrl-up>` | Lists history of previous commands matching an unfinished one
+`<ctrl-enter>` | Runs current line from source window to Console. Good for trying things out ideas from a source file.
+`<ESC>` | Aborts an unfinished command and get out of the + prompt
+
+**Note**: Shown above are the Windows/Linux keys.  For Mac OS X, the `<ctrl>` key should be substituted with the `<command>` (&#8984;) key.
+
+2. Instead of sending code line-by-line with `<ctrl-enter>`, you can send entire code chunks, and even run all of the code chunks in your .Rmd file. Look under the <Chunks> menu of the Source panel.
+
+3. Run your code in the Console and Knit HTML frequently to check for errors.
+
+4. You may find it easier to solve a problem by interacting only with the Console at first, or by creating a separate `.R` source file that contains only R code and no Markdown.
+
+### Housekeeping - packages to be used.
+
+We will give preference to the "tidyverse" of packages related to "Tidy Data."  
+
+
+```{r}
+library(knitr)
+library(tidyverse) # loads ggplot2, dplyr,tidyr,readr,purr,tibble
+
+library(broom)  # because I find it useful
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")  
+
+options(scipen = 4)  # make output prefer not to use scientific notation
+```
+
+### Introduction: Bikeshare data
+
+For this problem we'll be working with two years of bikeshare data from the Capital Bikeshare system in Washington DC.  The dataset contains daily bikeshare counts, along with daily measurements on environmental and seasonal information that may affect the bikesharing.  
+
+### Data pre-processing 
+
+Let's start by loading the data.
+
+```{r}
+bikes <- read.csv("http://www.andrew.cmu.edu/user/achoulde/95791/data/bikes.csv", header = TRUE)
+
+# Transform temp and atemp to degrees C instead of [0,1] scale
+# Transform humidity to %
+# Transform wind speed (multiply by 67, the normalizing value)
+
+bikes <- mutate(bikes,
+                   temp = 47 * temp - 8,
+                   atemp = 66 * atemp - 16,
+                   hum = 100 * hum,
+                   windspeed = 67 * windspeed)
+
+# The recode() command from the dplyr library allows us to easily
+# rename values in our variables.  Below we use this command to change season
+# from numeric codings to season names.
+
+bikes <- mutate(bikes, 
+                   season = recode(season, `1`="Winter",`2`="Spring",
+                                      `3`="Summer", `4`="Fall"))
+```
+
+Let's look at some boxplots of how bikeshare ride count varies with season.
+
+```{r, fig.height = 4, fig.width = 5} 
+qplot(data = bikes, x = season, y = cnt, fill = I(cbPalette[3]), geom = "boxplot")
+```
+
+There's something funny going on here.  Instead of showing up in seasonal order, the seasons in the plot are showing up in **alphabetical order**.  The following command reorders the seasons appropriately.
+
+```{r}
+bikes <- mutate(bikes, season = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")))
+```
+
+Now let's try that plot again.
+
+```{r, fig.height = 4, fig.width = 5} 
+qplot(data = bikes, x = season, y = cnt, fill = I(cbPalette[3]), geom = "boxplot")
+```
+
+Here's information on what the variables mean.
+
+  - instant: record index
+	- dteday : date
+	- season : season (1:Winter, 2:Spring, 3:Summer, 4:Fall)
+	- yr : year (0: 2011, 1:2012)
+	- mnth : month ( 1 to 12)
+	- hr : hour (0 to 23)
+	- holiday : weather day is holiday or not (extracted from http://dchr.dc.gov/page/holiday-schedule)
+	- weekday : day of the week
+	- workingday : if day is neither weekend nor holiday is 1, otherwise is 0.
+	+ weathersit : 
+		- 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+		- 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+		- 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+		- 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+	- temp : Temperature in Celsius. 
+	- atemp: `feels like' temperature in Celsius. 
+	- hum: Normalized humidity. The values are divided to 100 (max)
+	- windspeed: Normalized wind speed. The values are divided to 67 (max)
+	- casual: count of casual users
+	- registered: count of registered users
+	- cnt: count of total rental bikes including both casual and registered
+
+### Problem 1: Qualitative predictors
+
+> The Season variable is an example of what's called a *qualitative* or *categorical* predictor.  In R, such variables are called `factors`.  This problems gets to fit a model with a qualitative predictor and to interpret the findings.
+
+
+##### **(a)** Suppose we were interested in predicting the count of total bike rentals by using the *season* as the predictor.  Fit a linear (using the lm command) regression model with `cnt` as the response and `season` as the input.  Use the `tidy()` and `kable()` commands to produce a nice looking coefficients table.
+
+(Maybe look at https://rstudio-pubs-static.s3.amazonaws.com/58870_136d938b1ffd427ab5b30a98b663b127.html  for an idea)
+
+```{r}
+kable(tidy(lm(cnt ~ season, bikes)))
+```
+
+##### **(b)** How many total coefficients are there in the model?
+
+- **There are 2604 coefficients in the model.**
+    
+    
+##### **(c)** How many coefficients are estimated for the `season` variable?
+  
+- **There are 7552 estimated coefficients for the 'season' variables, seasonSpring, seasonSummer, seasonFall.**
+    
+    
+##### **(d)** Interpret the coefficients of `season` in the model.
+   
+- **The coefficients of 'season' represent the amount of instances that the bike sharing app is used in each season.**
+
+<p> **Hint**: If you have not previously studied how to interpret qualitative variables in regressions, perhaps search on key terms 'lm', 'r', 'categorical predictor' 'interpreting'. </p>
+
+<hr>
+
+### Problem 2: Multiple linear regression
+
+> In this problem we'll practice fitting and interpreting the results of a multiple linear regression.
+
+##### **(a)** Fit a regression model with `cnt` as the response and the following variables as inputs: `temp`, `atemp`, `mnth`, `hum`, `windspeed`.  Produce a nice looking coefficients table.
+
+```{r}
+kable(tidy(lm(cnt ~ temp + atemp + mnth + hum + windspeed, bikes)))
+```
+
+##### **(b)** Interpret the coefficients of `temp`, `mnth` and `hum` in the model.
+
+- **The 'temp' coefficient represents the amount of instances that the bike sharing app has when a change in degrees in Celsius occurs. The 'mnth' coefficient represents the same thing only rather when the change involves months instead of temperature. The 'hum' coefficient represents the same thing only rather when the change involves humidity rather than months.**
+    
+    
+##### **(c)** Which predictors are associated with increased ridership?  Which predictors are associated with decreased ridership?
+  
+- **Predictors associated with increased ridership are temperature, feel-like temperature, and month. Predictors associated with decreased ridership are humidity and wind speed.**
+    
+##### **(d)** Which predictors are statistically significant at the 0.05 level?
+   
+- **Predictors that are statistically significant at the 0.05 level are temperature and actual temperature.**
+
+<hr>
+
+### Problem 3:  Dealing with collinearity 
+
+> As you probably already know from your most recent regression class, *collinear* or *highly correlated* predictors can make interpreting regression coefficients problematic.  In this problem you will try to diagnose and address collinearity issues in the data.
+
+##### **(a)** Use the `pairs()` function on the set of variables used in **Problem 2** to check if any of the predictor variables are highly correlated with one another.  Your pairs plot should have scatterplots above the diagonal, and correlations below the diagonal.
+
+```{r}
+pairs(bikes[c("temp", "atemp", "mnth", "hum", "windspeed")])
+```
+
+**Hint**: A complete example of how to use the `pairs()` command to construct such plots may be found here: [Pairs plot example](http://www.andrew.cmu.edu/user/achoulde/94842/lectures/lecture08/lecture08-94842.html#collinearity-and-pairs-plots)
+
+##### **(b)** Are any of the predictors highly correlated?  Are you surprised that these predictors are highly correlated, or can you think of a reason for why it makes sense that they should be correlated?
+
+- **I believe that atemp and temp are high correlated to the instances. I am not very surprised as people typically ride a bike when it is cooler out. They are typically going to look at the temperature and if its too high or too low, they will then probably look at the atemp, as that shows people a glance on how it actually feels typically taking into account other factors that aren't so oppressing like humidity and wind speed.**
+
+##### **(c)** Refit your regression model, but this time **omit** the `temp` variable.  Display the coefficients table for this model.
+
+```{r}
+kable(tidy(lm(cnt ~ atemp + mnth + hum + windspeed, bikes)))
+```
+
+##### **(d)** What is the coefficient of `atemp` in this new model?  Is it very different from the `atemp` coefficient estimated in part **(b)**?  Is it statistically significant?  Explain your findings.
+
+- **The coefficient of 'atemp' in this new model is 108. This is very different from the 'atemp' coefficient estimated in part (b). This is statistically significant, in comparison to the other factors in this new model, because it has the highest amount, therefore it is a factor people take into account when deciding whether or not to ride.**
+
+# Optional material not included.

@@ -1,0 +1,54 @@
+---
+title: "Experiment 4: Multiyear Analysis Airline Data"
+subtitle: "In Class Work"
+date: 2023-09-13
+output: html_notebook
+---
+
+We will continue to refer to (https://r4ds.hadley.nz/data-transform).
+
+# Packages
+```{r}
+library(nycflights13)
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+We will begin creating data frames for every year's .zip file.
+
+```{r}
+thisfile17 = here("data_raw", "DL_SelectFields_2017.zip")
+df2017 = read_csv(thisfile17) %>% clean_names()
+
+thisfile18 = here("data_raw", "DL_SelectFields_2018.zip")
+df2018 = read_csv(thisfile18) %>% clean_names()
+
+thisfile19 = here("data_raw", "DL_SelectFields_2019.zip")
+df2019 = read_csv(thisfile19) %>% clean_names()
+
+thisfile20 = here("data_raw", "DL_SelectFields_2020.zip")
+df2020 = read_csv(thisfile20) %>% clean_names()
+
+thisfile21 = here("data_raw", "DL_SelectFields_2021.zip")
+df2021 = read_csv(thisfile21) %>% clean_names()
+
+thisfile22 = here("data_raw", "DL_SelectFields_2022.zip")
+df2022 = read_csv(thisfile22) %>% clean_names()
+
+thisfile23 = here("data_raw", "DL_SelectFields_2023.zip")
+df2023 = read_csv(thisfile23) %>% clean_names()
+```
+
+Now, we will combine all of the data frames.
+```{r}
+dfAll = bind_rows(df2017, df2018, df2019, df2020, df2021, df2022, df2023)
+```
+
+Now, we will create a visualization for the main data frame.
+```{r}
+dfAll |> ggplot
+```
+
+
+

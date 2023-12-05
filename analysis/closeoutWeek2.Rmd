@@ -1,0 +1,58 @@
+---
+title: "Closeout Assignment from Week 2"
+date: 2023-09-11
+output: html_notebook
+---
+
+This is a notebook that is derived from an experiment done in week 2 of DS241.
+
+It will consist the loading of NYC flight data, finding unique flight numbers in flights to Miami in September, creating a data frame called df6, which is composed of flights to Miami with a flight number matching the smallest flight number from the given set stated above, creating a visualization (using ggplot) to show DELAYS associated with this flight number, and creating another visualization that helps understand the relationship between the arrival delay and the departure delay.
+
+First, we will load our needed libraries.
+```{r}
+library(nycflights13)
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+Now, we will load our flight data into a variable named df1.
+```{r}
+df1 = flights
+glimpse(df1)
+```
+
+Next, we will find the unique flight numbers for flights to Miami in September.
+To begin, we will create a variable, called df3, that will hold the flights to Miami in September
+```{r}
+df3 = df1 |> filter(month == 9, dest == "MIA")
+glimpse(df3)
+```
+
+Then, we will create a variable, called unique_df3, that will find the unique flight numbers in the flights composed in df3.
+```{r}
+unique_df3 = df3 |> distinct(flight) |> arrange(flight)
+glimpse(unique_df3)
+```
+
+We will now create the data frame df6, which will compose of flights to Miami with the smallest flight number from the set above.
+```{r}
+df6 = df1 %>% filter (dest == "MIA", flight == 83)
+glimpse(df6)
+```
+
+Now, we will create a visualization (using ggplot) to show the DELAYS associated with this flight number.
+```{r}
+df6 |> ggplot(aes(x = dep_delay, y = arr_delay)) +geom_point()
+```
+
+
+Finally, we will create a visualization that helps to understand the relationship between the arrival delay and the departure delay.
+```{r}
+flights |> ggplot(aes(x = dep_delay, y = arr_delay)) +geom_point()
+```
+We can see from the visual that the arrival delay and departure delay are similar enough in time to one another. Example: if a flight departed ~20 minutes late, you can expect to arrive ~20 minutes late. Generally, the arrival delays and departure delays are right-skewed, meaning the delays are not very long. Any "delay" value that is negative, means that it was early; so if arrival delay is negative, then it arrived early, and if departure delay is negative, then the flight left early.
+
+Extra Credit: We postulated in class that a negative value for departure delay represented an "early departure." Can you find a source that verifies that assumption? If so, include a citation to that reference in your notebook.
+
+Source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8041857/

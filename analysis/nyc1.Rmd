@@ -1,0 +1,65 @@
+---
+title: "Experiment 1: Airline Data Analysis"
+date: 2023-09-06
+output: html_notebook
+---
+
+Textbook section 4: Data Transformations (https://r4ds.hadley.nz/data-transform)
+
+Here we use the provided data set from the US Bureau of Transportation Statistics of the 336,776 flights in NYC in 2013. This data set has already been cleaned and we will be working on transforming it.
+
+```{r}
+library(nycflights13)
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+Now, we load the data into the variable df1.
+
+```{r}
+df1 = flights
+```
+
+We can view the data inside df1 with glimpse.
+
+```{r}
+glimpse(df1)
+```
+09/06/23 Tasks:
+Task 1: df2 = flights from Miami in September
+ 
+Task 2: df3 = flights in September going to Miami
+
+Task 3: df4 = flights in January going to Miami
+
+Task 4: df5 = flights in summer going to Chicago
+
+```{r}
+df2 = df1 |> filter(month == 9, origin == "MIA")
+glimpse(df2)
+
+df3 = df1 |> filter(month == 9, dest == "MIA")
+glimpse(df3)
+
+df4 = df1 |> filter(month == 1, dest == "MIA")
+glimpse(df4)
+
+df5 = df1 |> filter(month %in% c(6, 7, 8), dest %in% c("ORD", "MDW"))
+glimpse(df5)
+```
+
+09/08/23 Tasks:
+- Sometimes flight numbers are repeated.  For flights to MIAMI in September, find the unique flight numbers.
+- Create a data frame df6 composed of flights to Miami with a flight number matching the smallest flight number from the set above.
+- Create a visualization (using ggplot) to show the DELAYS associated with this flight number.
+
+```{r}
+unique_df3 = df3 |> distinct(flight) |> arrange(flight)
+glimpse(unique_df3)
+
+df6 = df1 %>% filter (dest == "MIA", flight == 83)
+glimpse(df6)
+
+df6 |> ggplot(aes(x = dep_delay, y = arr_delay)) +geom_point()
+```
